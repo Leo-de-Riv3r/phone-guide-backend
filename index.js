@@ -1,106 +1,123 @@
-const { json } = require('express')
-const express = require('express')
-const morgan = require('morgan')
-const cors = require('cors')
-const app = express()
-app.use(express.json())
-app.use(cors())
-app.use(express.static('build'))
+const { json, response } = require("express");
+const express = require("express");
+const morgan = require("morgan");
+const cors = require("cors");
+require("dotenv").config();
+const mongoose = require("mongoose");
+const Person = require("./models/person.js");
+const app = express();
+app.use(express.static("build"));
+app.use(express.json());
+app.use(cors());
+const url = `mongodb+srv://leoguti182:noentresHDP1@cluster0.dvs4iqm.mongodb.net/?retryWrites=true&w=majority`;
 
-let persons = [
-  {
-    id:1,
-    name: "Arto Hellas",
-    number: "040-12244"
-  },
-  {
-    id:2,
-    name: "Ada Lovelace",
-    number: "39-844-256732"
-  },
-  {
-    id:3,
-    name: "Dan Abramov",
-    number: "12-43-2354565"
-  },
-  {
-    id:4,
-    name: "Mery Poppendick",
-    number: "39-23-64542781"
-  }
-]
+mongoose.connect(url);
+
 const requestLogger = (request, response, next) => {
-  if (request.method == "POST") 
-    console.log(JSON.stringify(request.body))
-  next()
-}
+  if (request.method == "POST") console.log(JSON.stringify(request.body));
+  next();
+};
 
 const unknownEndpoint = (req, res) => {
   res.status(404).json({
-    error: 'unknown endpoint'
-  })
-}
+    error: "unknown endpoint",
+  });
+};
 
-app.use(morgan('dev'))
-app.use(requestLogger)
+const errorHandler = (error, req, res, next) => {
+  console.error(error.message);
+
+  if (error.name == "CastError") {
+    return res.status(400).send({ error: "malformatted id" });
+  } else if (error.name == "ValidationError") {
+    return res.status(400).json({ error: error.message });
+  }
+
+  next(error);
+};
+
+app.use(morgan("dev"));
+app.use(requestLogger);
 
 app.get("/", (req, res) => {
-  res.send("Hello world!")
-})
+  res.send("Hello world!");
+});
 
 app.get("/api/persons", (req, res) => {
-  res.json(persons)
-})
+  Person.find({}).then((p) => {
+    res.json(p);
+  });
+});
 
-app.get("/info", (req, res) => {
-  res.send(`<h1>Phonebook has info for ${persons.length} people</h1>${new Date()}`)
-})
+// app.get("/info", (req, res) => {
+//   res.send(
+//     `<h1>Phonebook has info for ${persons.length} people</h1>${new Date()}`
+//   );
+// });
 
-app.get("/api/persons/:id", (req, res) => {
-  const id = Number(req.params.id)
-  const personFound = persons.find(p => p.id === id)
-
-  if (personFound) 
-    res.json(personFound)
-  else 
-    res.send(`<h1>No person found with id ${id}`)
-})
-
-app.delete("/api/persons/:id", (req, res) =>{
-  const id = Number(req.params.id)
-  persons = persons.filter((person) => person.id !== id)
-  res.status(204).end()
-})
-
-
-app.post('/api/persons', (request, response) => {
-  
-  if (!request.body.name || !request.body.number) {
-    return response.status(400).json({ 
-      error: 'content missing'
-    })
-  }
-
-  let personsName = persons.map((person) => person.name)
-  if (personsName.includes(request.body.name)){
-    return response.status(400).json({ 
-      error: 'name must be unique'
-    })
-  }
+app.put("/api/persons/:id", (req, res, next) => {
+  const body = req.body;
 
   const person = {
-    id: Date.now(),
-    name: request.body.name,
-    number: request.body.number
+    name: body.name,
+    number: body.number,
+    _id: body._id,
+  };
+
+  Person.findByIdAndUpdate(req.params.id, person, { new: true })
+    .then((newP) => res.json(newP))
+    .catch((err) => next(err));
+});
+
+app.get("/api/persons/:id", (req, res, next) => {
+  Person.findById(req.params.id)
+    .then((p) => {
+      if (p) res.json(p);
+      else res.status(404).end();
+    })
+    .catch((error) => next(error));
+});
+
+app.delete("/api/persons/:id", (req, res, next) => {
+  Person.findByIdAndRemove(req.params.id)
+    .then((result) => res.status(204).end())
+    .catch((err) => next(err));
+});
+
+app.post("/api/persons", (request, response, next) => {
+  if (!request.body.name || !request.body.number) {
+    return response.status(400).json({
+      error: "content missing",
+    });
   }
 
-  persons = persons.concat(person)
-  response.json(person)
-})
+  let names = [];
+  Person.find({}).then((p) => (names = p));
+  if (names.includes(request.body.name)) {
+    return response.status(400).json({
+      errorhot: "name must be unique",
+    });
+  }
 
-app.use(unknownEndpoint)
+  const person = new Person({
+    name: request.body.name,
+    number: request.body.number,
+  });
 
-const PORT = process.env.PORT || 3100
+  person
+    .save()
+    .then((p) => {
+      return response.json(p.toJSON());
+    })
+    .then((resp) => response.json(resp))
+    .catch((err) => next(err));
+});
+
+app.use(unknownEndpoint);
+
+app.use(errorHandler);
+
+const PORT = process.env.PORT;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
