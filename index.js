@@ -9,7 +9,7 @@ const app = express();
 app.use(express.static("build"));
 app.use(express.json());
 app.use(cors());
-const url = `mongodb+srv://leoguti182:noentresHDP1@cluster0.dvs4iqm.mongodb.net/?retryWrites=true&w=majority`;
+const url = process.env.MONGODB_URI
 
 mongoose.connect(url);
 
