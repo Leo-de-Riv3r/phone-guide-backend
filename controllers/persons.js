@@ -11,12 +11,6 @@ personRouter.get('/persons', (req, res) => {
   })
 })
 
-// app.get("/info", (req, res) => {
-//   res.send(
-//     `<h1>Phonebook has info for ${persons.length} people</h1>${new Date()}`
-//   );
-// });
-
 personRouter.put('/persons/:id', (req, res, next) => {
   const body = req.body
 
